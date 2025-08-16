@@ -1,6 +1,6 @@
 // API service for IRIS AI backend
-const API_BASE_URL = 'http://localhost:8000'; // Change this to your backend URL
-const ML_API_BASE_URL = 'http://localhost:5001'; // ML Flask backend URL
+const API_BASE_URL = 'http://16.176.182.151'; // Change this to your backend URL
+const ML_API_BASE_URL = 'http://52.65.184.114/'; // ML Flask backend URL
 
 class ApiService {
   private token: string | null = null;
