@@ -1,6 +1,7 @@
 // API service for IRIS AI backend
-const API_BASE_URL = 'http://16.176.182.151'; // Change this to your backend URL
-const ML_API_BASE_URL = 'http://52.65.184.114/'; // ML Flask backend URL
+// Use env vars if provided, otherwise use relative paths that go through Vite dev proxy
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+const ML_API_BASE_URL = (import.meta as any).env?.VITE_ML_API_BASE_URL || '/ml';
 
 class ApiService {
   private token: string | null = null;
@@ -13,7 +14,7 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = `${String(API_BASE_URL).replace(/\/$/, '')}${endpoint}`;
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -41,7 +42,7 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${ML_API_BASE_URL}${endpoint}`;
+    const url = `${String(ML_API_BASE_URL).replace(/\/$/, '')}${endpoint}`;
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
