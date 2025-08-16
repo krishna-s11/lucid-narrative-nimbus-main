@@ -1,5 +1,5 @@
 // API service for IRIS AI backend
-// Use env vars if provided, otherwise use relative paths that go through Vite dev proxy
+// Use env vars if provided, otherwise use relative paths that go through proxy
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
 const ML_API_BASE_URL = (import.meta as any).env?.VITE_ML_API_BASE_URL || '/ml';
 
