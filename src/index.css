@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Crypto Trading Design System - Professional fintech aesthetic */
+
+@layer base {
+  :root {
+    /* Dark trading theme */
+    --background: 222 14% 8%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 14% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 14% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Purple AI theme */
+    --primary: 270 91% 65%;
+    --primary-foreground: 222 14% 8%;
+    --primary-glow: 280 100% 70%;
+
+    --secondary: 222 14% 14%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 222 14% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 222 14% 16%;
+    --accent-foreground: 210 40% 98%;
+
+    /* Trading colors */
+    --success: 142 71% 45%;
+    --success-foreground: 210 40% 98%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 14% 18%;
+    --input: 222 14% 14%;
+    --ring: 270 91% 65%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(270 91% 65%), hsl(290 100% 70%));
+    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(120 100% 35%));
+    --gradient-card: linear-gradient(135deg, hsl(222 14% 10%), hsl(222 14% 12%));
+    --gradient-hero: linear-gradient(135deg, hsl(222 14% 8%), hsl(240 20% 12%));
+
+    /* Shadows */
+    --shadow-glow: 0 0 30px hsl(270 91% 65% / 0.4);
+    --shadow-card: 0 8px 32px hsl(222 14% 4% / 0.3);
+    --shadow-success: 0 0 20px hsl(142 71% 45% / 0.3);
+    --shadow-danger: 0 0 20px hsl(0 84% 60% / 0.3);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background: var(--gradient-hero);
+  }
+}
+
+@layer components {
+  /* Trading UI Components */
+  .crypto-card {
+    @apply bg-card border border-border rounded-lg p-6;
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .glow-button {
+    @apply transition-all duration-300;
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glow-button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow), 0 4px 20px hsl(270 91% 65% / 0.5);
+  }
+
+  .trading-success {
+    @apply text-success;
+    text-shadow: var(--shadow-success);
+  }
+
+  .trading-danger {
+    @apply text-danger;
+    text-shadow: var(--shadow-danger);
+  }
+
+  /* Animated gradients */
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulseGlow {
+    from {
+      box-shadow: var(--shadow-glow);
+    }
+    to {
+      box-shadow: 0 0 40px hsl(270 91% 65% / 0.6);
+    }
+  }
+
+  /* Enhanced dashboard styles */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+  }
+
+  .premium-card {
+    @apply crypto-card relative overflow-hidden;
+    background: linear-gradient(135deg, hsl(var(--card)), hsl(var(--card) / 0.8));
+    border: 1px solid hsl(var(--border));
+    backdrop-filter: blur(20px);
+    transition: all 0.3s ease;
+  }
+
+  .premium-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card), 0 20px 40px hsl(222 14% 4% / 0.4);
+  }
+
+  .premium-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--gradient-primary);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .premium-card:hover::before {
+    opacity: 1;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
