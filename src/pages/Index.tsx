@@ -28,7 +28,20 @@ const Index = () => {
     total_assets: 0,
     total_loss: 0
   });
-  const [trendingCoins, setTrendingCoins] = useState<Array<{ symbol: string; volume: number; last: number; change?: number }>>([]);
+  const [trendingCoins, setTrendingCoins] = useState<Array<{
+    symbol: string;
+    volume: number;
+    last: number;
+    change_24h: number;
+    price_change: number;
+    high_24h: number;
+    low_24h: number;
+    bid: number;
+    ask: number;
+    market_cap: number;
+    volatility: number;
+    timestamp: number;
+  }>>([]);
   const [portfolioChart, setPortfolioChart] = useState<{ data: Array<{ date: string; value: number }> } | null>(null);
   const [portfolio, setPortfolio] = useState<Array<{ id: number; btc_amount: number; purchase_price: number; created_at: string }>>([]);
   const [preferences, setPreferences] = useState({
@@ -47,6 +60,9 @@ const Index = () => {
           if (info?.email) {
             setUserEmail(info.email);
           }
+          if (info?.username) {
+            setUsername(info.username);
+          }
           setIsAuthenticated(true);
           await loadDashboardData();
         }
@@ -63,7 +79,7 @@ const Index = () => {
     try {
       const [stats, coins, pf, prefs] = await Promise.all([
         apiService.getUserStats(),
-        apiService.getTrendingCoins(),
+        apiService.getEnhancedTrendingCoins(), // Use enhanced trending data
         apiService.getPortfolio(),
         apiService.getPreferences().catch(() => null),
       ]);
@@ -127,7 +143,11 @@ const Index = () => {
   const handleLogin = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      await apiService.login(email, password);
+      const loginResponse = await apiService.login(email, password);
+      // Update username from login response
+      if (loginResponse?.user?.username) {
+        setUsername(loginResponse.user.username);
+      }
       setIsAuthenticated(true);
       await loadDashboardData();
       toast({ title: "Welcome back!", description: "Successfully logged in" });
@@ -142,7 +162,11 @@ const Index = () => {
     setIsLoading(true);
     try {
       await apiService.register(username, email, password);
-      await apiService.login(email, password);
+      const loginResponse = await apiService.login(email, password);
+      // Update username from login response
+      if (loginResponse?.user?.username) {
+        setUsername(loginResponse.user.username);
+      }
       setIsAuthenticated(true);
       await loadDashboardData();
       toast({ title: "Account created!", description: "Welcome to IRIS AI" });
@@ -158,12 +182,38 @@ const Index = () => {
     setIsAuthenticated(false);
   };
 
-  const handleExecuteTrade = async (symbol: string, side: string, amount: number, stopLoss?: number) => {
+  const handleExecuteTrade = async (symbol: string, side: string, usdAmount: number, stopLoss?: number) => {
     setIsLoading(true);
     try {
-      await apiService.executeTrade(symbol, side, amount, stopLoss);
+      const result = await apiService.executeDirectTrade(symbol, side, usdAmount, stopLoss);
+      console.log('Trade executed:', result);
+      
+      // Show success message with trade details
+      toast({
+        title: "Trade Executed Successfully!",
+        description: `${side.toUpperCase()} ${result.quantity.toFixed(6)} ${symbol} for $${usdAmount}`,
+      });
+      
+      // Reload dashboard data to show updated portfolio
       await loadDashboardData();
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Trade execution failed:', error);
+      
+      // Show specific error message from backend
+      let errorMessage = 'Failed to execute trade. Please try again.';
+      
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Trade Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
       throw error;
     } finally {
       setIsLoading(false);
@@ -217,7 +267,7 @@ const Index = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 rounded-lg bg-gradient-to-r from-primary/10 to-success/10 border border-border gap-4">
             <div className="flex-1">
               <h2 className="text-xl sm:text-2xl font-bold gradient-text">Welcome back, {username}!</h2>
-              <p className="text-sm sm:text-base text-muted-foreground">Your intelligent trading assistant is ready to help. Portfolio up 24.67% today!</p>
+              <p className="text-sm sm:text-base text-muted-foreground">Your intelligent trading assistant is ready to help.</p>
             </div>
             <div className="flex justify-center sm:justify-end">
               <MLPredictionsModal />

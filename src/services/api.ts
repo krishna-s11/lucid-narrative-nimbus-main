@@ -14,7 +14,7 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${String(API_BASE_URL).replace(/\/$/, '')}${endpoint}`;
+    const url = `${API_BASE_URL}${endpoint}`;
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -31,7 +31,22 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Try to get the detailed error message from the response
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // If we can't parse the error response, use the status text
+        errorMessage = response.statusText || `HTTP error! status: ${response.status}`;
+      }
+      
+      const error = new Error(errorMessage);
+      (error as any).status = response.status;
+      (error as any).response = response;
+      throw error;
     }
 
     return response.json();
@@ -42,7 +57,7 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${String(ML_API_BASE_URL).replace(/\/$/, '')}${endpoint}`;
+    const url = `${ML_API_BASE_URL}${endpoint}`;
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -161,13 +176,204 @@ class ApiService {
     });
   }
 
+  async executeDirectTrade(
+    symbol: string,
+    side: string,
+    usdAmount: number,
+    stopLoss?: number
+  ) {
+    return this.request<{
+      message: string;
+      order_id: string;
+      symbol: string;
+      side: string;
+      quantity: number;
+      price: number;
+      usd_amount: number;
+      status: string;
+      timestamp: string;
+      details: any;
+    }>('/trading/execute-direct', {
+      method: 'POST',
+      body: JSON.stringify({
+        symbol,
+        side,
+        usd_amount: usdAmount,
+        stop_loss: stopLoss,
+      }),
+    });
+  }
+
+  // Market Signals endpoints
+  async getMarketSignals(symbol: string = 'BTC/USDT') {
+    return this.request<{
+      symbol: string;
+      signal: string;
+      strength: number;
+      factors: string[];
+      indicators: any;
+      timestamp: string;
+    }>('/trading/market-signals', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  async getMarketSignalsForSymbols(symbols: string[]) {
+    return Promise.all(
+      symbols.map(symbol => this.getMarketSignals(symbol))
+    );
+  }
+
+  async getAllMarketSignals() {
+    return this.request<Array<{
+      symbol: string;
+      signal: string;
+      strength: number;
+      factors: string[];
+      indicators: any;
+      timestamp: string;
+    }>>('/trading/market-signals-all', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  // AI Performance endpoints
+  async getAIPerformance() {
+    return this.request<{
+      total_trades: number;
+      success_rate: number;
+      total_profit: number;
+      avg_confidence: number;
+      active_time: string;
+    }>('/trading/ai-performance', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  // AI Auto Trading endpoints
+  async executeAIAutoTrade(
+    symbol: string = 'BTC/USDT',
+    riskLevel: number = 3,
+    maxTradeSize: number = 25.0
+  ) {
+    return this.request<{
+      message: string;
+      trade_details?: any;
+      signal: string;
+      strength: number;
+      trade_size: number;
+      risk_level: number;
+    }>('/trading/ai-auto-trade', {
+      method: 'POST',
+      body: JSON.stringify({
+        symbol,
+        risk_level: riskLevel,
+        max_trade_size: maxTradeSize,
+      }),
+    });
+  }
+
+  // Wallet endpoints
+  async getWalletBalance() {
+    return this.request<{
+      total_usd_value: number;
+      crypto_balances: Array<{
+        currency: string;
+        balance: number;
+        usd_value: number;
+        price_usd: number;
+      }>;
+      account_status: string;
+      last_updated: string;
+    }>('/trading/wallet-balance', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  async getWalletStatus() {
+    return this.request<{
+      connected: boolean;
+      status: string;
+      message: string;
+      account_type?: string;
+      last_updated?: string;
+    }>('/trading/wallet-status', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
   // Live feeds endpoints
   async getTrendingCoins() {
     return this.request<Array<{
       symbol: string;
       volume: number;
       last: number;
+      change_24h: number;
+      high_24h: number;
+      low_24h: number;
+      bid: number;
+      ask: number;
+      timestamp: number;
     }>>('/live/trending');
+  }
+
+  async getEnhancedTrendingCoins() {
+    return this.request<Array<{
+      symbol: string;
+      volume: number;
+      last: number;
+      change_24h: number;
+      price_change: number;
+      high_24h: number;
+      low_24h: number;
+      bid: number;
+      ask: number;
+      market_cap: number;
+      volatility: number;
+      timestamp: number;
+    }>>('/live/trending-enhanced');
+  }
+
+  // Transaction endpoints
+  async getUserTransactions(limit: number = 20) {
+    return this.request<Array<{
+      id: string | number;
+      type: 'buy' | 'sell';
+      symbol: string;
+      amount: number;
+      price: number;
+      usd_value: number;
+      timestamp: number;
+      status: string;
+      fee: { cost: number; currency: string };
+      order_id: string;
+    }>>(`/trading/transactions?limit=${limit}`);
+  }
+
+  async getTransactionSummary() {
+    return this.request<{
+      total_trades: number;
+      total_volume: number;
+      successful_trades: number;
+      failed_trades: number;
+      favorite_pairs: Array<{ symbol: string; count: number }>;
+      last_trade_date: string | null;
+    }>('/trading/transaction-summary');
   }
 
   async getBlockOrders(symbol: string = 'BTC/USDT') {

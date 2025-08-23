@@ -1,17 +1,26 @@
 import { Card } from "@/components/ui/card";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, RefreshCw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { apiService } from "@/services/api";
+import { toast } from "sonner";
 
 interface TrendingCoin {
   symbol: string;
   volume: number;
   last: number;
-  change?: number;
+  change_24h: number;
+  high_24h: number;
+  low_24h: number;
+  bid: number;
+  ask: number;
+  timestamp: number;
 }
 
 interface TrendingCoinsProps {
-  coins: TrendingCoin[];
+  coins?: TrendingCoin[];
   isLoading?: boolean;
+  onRefresh?: () => void;
 }
 
 // Coin logo mapping
@@ -53,15 +62,59 @@ const getCoinColor = (symbol: string) => {
   return colorMap[coinSymbol] || 'text-primary';
 };
 
-export function TrendingCoins({ coins, isLoading = false }: TrendingCoinsProps) {
-  if (isLoading) {
+export function TrendingCoins({ coins: propCoins, isLoading: propIsLoading, onRefresh }: TrendingCoinsProps) {
+  const [coins, setCoins] = useState<TrendingCoin[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  // Fetch trending coins data
+  const fetchTrendingCoins = async () => {
+    setIsLoading(true);
+    try {
+      const data = await apiService.getTrendingCoins();
+      setCoins(data);
+      setLastUpdated(new Date().toLocaleTimeString());
+      
+      // Only show toast for manual refresh, not auto-refresh
+      if (propIsLoading === false && !propCoins) {
+        // This is a manual refresh, show success toast
+        toast.success(`Updated ${data.length} trending coins`);
+      }
+    } catch (error) {
+      console.error('Failed to fetch trending coins:', error);
+      // Only show error toast for manual refresh
+      if (propIsLoading === false && !propCoins) {
+        toast.error('Failed to fetch trending coins data');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Auto-refresh data
+  useEffect(() => {
+    fetchTrendingCoins();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchTrendingCoins, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Use prop data if provided, otherwise use fetched data
+  const displayCoins = propCoins || coins;
+  const displayIsLoading = propIsLoading || isLoading;
+
+  if (displayIsLoading) {
     return (
       <Card className="crypto-card p-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
         <div className="relative">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold gradient-text">Trending Coins</h3>
-            <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+              <span className="text-xs text-muted-foreground">Loading...</span>
+            </div>
           </div>
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
@@ -94,10 +147,27 @@ export function TrendingCoins({ coins, isLoading = false }: TrendingCoinsProps) 
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
             <span className="text-xs text-muted-foreground">Live</span>
+            {lastUpdated && (
+              <span className="text-xs text-muted-foreground">
+                • {lastUpdated}
+              </span>
+            )}
+            <button
+              onClick={fetchTrendingCoins}
+              disabled={isLoading}
+              className="p-1 hover:bg-primary/10 rounded transition-colors"
+            >
+              {isLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+            </button>
           </div>
         </div>
+        
         <div className="space-y-4">
-          {coins.slice(0, 5).map((coin, index) => (
+          {displayCoins.slice(0, 5).map((coin, index) => (
             <div 
               key={coin.symbol} 
               className="flex items-center justify-between p-3 rounded-lg bg-card/50 hover:bg-card/70 transition-all duration-300 hover:shadow-lg group"
@@ -119,31 +189,50 @@ export function TrendingCoins({ coins, isLoading = false }: TrendingCoinsProps) 
                   <p className="font-semibold group-hover:text-primary transition-colors">
                     {coin.symbol}
                   </p>
-                  <p className="text-xs text-muted-foreground flex items-center space-x-1">
-                    <span>Vol:</span>
-                    <span className="font-medium">{(coin.volume / 1000000).toFixed(1)}M</span>
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center space-x-1">
+                      <span>Vol:</span>
+                      <span className="font-medium">{(coin.volume / 1000000).toFixed(1)}M</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      H: ${coin.high_24h?.toFixed(2) || '--'} | L: ${coin.low_24h?.toFixed(2) || '--'}
+                    </p>
+                  </div>
                 </div>
               </div>
+              
               <div className="text-right">
                 <p className="font-bold text-lg">${coin.last.toFixed(2)}</p>
-                {coin.change && (
-                  <p className={cn(
-                    "text-sm flex items-center justify-end space-x-1 font-medium",
-                    coin.change > 0 ? "text-success" : "text-danger"
-                  )}>
-                    {coin.change > 0 ? (
-                      <TrendingUp className="h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4" />
-                    )}
-                    <span>{coin.change > 0 ? '+' : ''}{coin.change.toFixed(2)}%</span>
-                  </p>
-                )}
+                <div className="space-y-1">
+                  {coin.change_24h !== undefined && (
+                    <p className={cn(
+                      "text-sm flex items-center justify-end space-x-1 font-medium",
+                      coin.change_24h > 0 ? "text-success" : "text-danger"
+                    )}>
+                      {coin.change_24h > 0 ? (
+                        <TrendingUp className="h-4 w-4" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4" />
+                      )}
+                      <span>{coin.change_24h > 0 ? '+' : ''}{coin.change_24h.toFixed(2)}%</span>
+                    </p>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    Bid: ${coin.bid?.toFixed(2) || '--'} | Ask: ${coin.ask?.toFixed(2) || '--'}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
         </div>
+        
+        {displayCoins.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No trending data available</p>
+            <p className="text-xs">Market data will appear here</p>
+          </div>
+        )}
       </div>
     </Card>
   );

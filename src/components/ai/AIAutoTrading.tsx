@@ -19,9 +19,11 @@ import {
   Clock,
   DollarSign,
   Cpu,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiService } from '@/services/api';
 
 interface AITrade {
   id: string;
@@ -48,114 +50,173 @@ const AIAutoTrading: React.FC = () => {
   const [riskLevel, setRiskLevel] = useState([3]);
   const [maxTradeSize, setMaxTradeSize] = useState([25]);
   const [aiTrades, setAiTrades] = useState<AITrade[]>([]);
-  const [marketSignals, setMarketSignals] = useState<MarketSignal[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [aiPerformance, setAiPerformance] = useState({
-    totalTrades: 247,
-    successRate: 84.2,
-    totalProfit: 18750.45,
-    avgConfidence: 92.3,
-    activeTime: '18h 42m'
+    totalTrades: 0,
+    successRate: 0.0,
+    totalProfit: 0.0,
+    avgConfidence: 0.0,
+    activeTime: '0h 0m'
   });
 
-  // Mock real-time AI trading data
-  const mockSignals: MarketSignal[] = [
-    {
-      symbol: 'BTC/USDT',
-      signal: 'STRONG_BUY',
-      strength: 94,
-      factors: ['Technical breakout', 'Volume surge', 'Sentiment positive']
-    },
-    {
-      symbol: 'ETH/USDT',
-      signal: 'BUY',
-      strength: 78,
-      factors: ['Support level hold', 'DeFi momentum', 'Institutional flow']
-    },
-    {
-      symbol: 'SOL/USDT',
+  // Supported symbols for market analysis
+  const supportedSymbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT'];
+
+  // Initialize with loading state for all symbols
+  const [marketSignals, setMarketSignals] = useState<MarketSignal[]>(
+    supportedSymbols.map(symbol => ({
+      symbol,
       signal: 'NEUTRAL',
-      strength: 52,
-      factors: ['Consolidation pattern', 'Mixed signals', 'Awaiting catalyst']
-    },
-    {
-      symbol: 'ADA/USDT',
-      signal: 'SELL',
-      strength: 71,
-      factors: ['Resistance rejection', 'Profit taking', 'Weak fundamentals']
-    }
-  ];
+      strength: 0,
+      factors: ['Loading...']
+    }))
+  );
 
-  const mockTrades: AITrade[] = [
-    {
-      id: 'AI001',
-      symbol: 'BTC/USDT',
-      side: 'BUY',
-      quantity: 0.025,
-      price: 43247.85,
-      confidence: 94.2,
-      reasoning: 'Strong momentum breakout with high volume confirmation. RSI oversold bounce expected.',
-      timestamp: Date.now() - 300000,
-      status: 'EXECUTED',
-      profit: 125.80
-    },
-    {
-      id: 'AI002',
-      symbol: 'ETH/USDT',
-      side: 'SELL',
-      quantity: 1.2,
-      price: 2634.92,
-      confidence: 87.5,
-      reasoning: 'Approaching major resistance level. Profit taking opportunity identified.',
-      timestamp: Date.now() - 600000,
-      status: 'EXECUTED',
-      profit: 89.45
-    },
-    {
-      id: 'AI003',
-      symbol: 'SOL/USDT',
-      side: 'BUY',
-      quantity: 8.5,
-      price: 98.43,
-      confidence: 91.8,
-      reasoning: 'Ecosystem growth indicators positive. Technical pattern suggests upward move.',
-      timestamp: Date.now() - 180000,
-      status: 'ANALYZING'
-    }
-  ];
-
-  useEffect(() => {
-    setMarketSignals(mockSignals);
-    setAiTrades(mockTrades);
-
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      if (isActive) {
-        // Update AI performance metrics
-        setAiPerformance(prev => ({
-          ...prev,
-          totalProfit: prev.totalProfit + (Math.random() * 50 - 10),
-          successRate: Math.max(75, Math.min(95, prev.successRate + (Math.random() * 2 - 1)))
-        }));
-
-        // Occasionally add new trades
-        if (Math.random() > 0.7) {
-          const symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT'];
-          const newTrade: AITrade = {
-            id: `AI${Date.now()}`,
-            symbol: symbols[Math.floor(Math.random() * symbols.length)],
-            side: Math.random() > 0.5 ? 'BUY' : 'SELL',
-            quantity: Number((Math.random() * 2).toFixed(3)),
-            price: 43000 + Math.random() * 1000,
-            confidence: 80 + Math.random() * 15,
-            reasoning: 'Market conditions favorable for entry. AI model confidence high.',
-            timestamp: Date.now(),
-            status: 'ANALYZING'
-          };
-          
-          setAiTrades(prev => [newTrade, ...prev.slice(0, 4)]);
+  // Fetch market signals for all supported symbols
+  const fetchMarketSignals = async () => {
+    try {
+      console.log('Fetching market signals for symbols:', supportedSymbols);
+      
+      // Try the new endpoint first
+      let signals;
+      try {
+        signals = await apiService.getAllMarketSignals();
+        console.log('Received all signals from new endpoint:', signals);
+      } catch (error) {
+        console.log('New endpoint failed, falling back to individual calls');
+        // Fallback to individual calls
+        signals = await apiService.getMarketSignalsForSymbols(supportedSymbols);
+        console.log('Received signals from fallback method:', signals);
+      }
+      
+      const formattedSignals = signals.map(response => ({
+        symbol: response.symbol,
+        signal: response.signal as MarketSignal['signal'],
+        strength: response.strength,
+        factors: response.factors
+      }));
+      
+      console.log('Formatted signals:', formattedSignals);
+      
+      // Ensure we have all 5 symbols, even if some failed
+      const finalSignals = supportedSymbols.map(symbol => {
+        const existingSignal = formattedSignals.find(s => s.symbol === symbol);
+        if (existingSignal) {
+          return existingSignal;
+        }
+        // Fallback for missing symbols
+        return {
+          symbol,
+          signal: 'NEUTRAL' as MarketSignal['signal'],
+          strength: 50,
+          factors: ['Data unavailable - using fallback']
+        };
+      });
+      
+      setMarketSignals(finalSignals);
+      
+      // Only show toast for manual refresh, not auto-refresh
+      if (!isLoading) {
+        if (finalSignals.length > 0) {
+          toast.success(`Updated ${finalSignals.length} market signals`);
         }
       }
-    }, 8000);
+    } catch (error) {
+      console.error('Failed to fetch market signals:', error);
+      // Set fallback signals when backend is not available
+      const fallbackSignals: MarketSignal[] = supportedSymbols.map(symbol => ({
+        symbol,
+        signal: 'NEUTRAL',
+        strength: 50,
+        factors: ['Backend unavailable - using fallback data']
+      }));
+      setMarketSignals(fallbackSignals);
+      // Only show error toast for manual refresh
+      if (!isLoading) {
+        toast.error('Failed to fetch market signals from backend');
+      }
+    }
+  };
+
+  // Fetch AI performance metrics
+  const fetchAIPerformance = async () => {
+    try {
+      const performance = await apiService.getAIPerformance();
+      setAiPerformance({
+        totalTrades: performance.total_trades,
+        successRate: performance.success_rate,
+        totalProfit: performance.total_profit,
+        avgConfidence: performance.avg_confidence,
+        activeTime: performance.active_time
+      });
+    } catch (error) {
+      console.error('Failed to fetch AI performance:', error);
+      // Keep default values if API fails
+      // Only show error toast for manual refresh, not auto-refresh
+      if (!isLoading) {
+        toast.error('Failed to fetch AI performance metrics');
+      }
+    }
+  };
+
+  // Execute AI auto trade
+  const executeAIAutoTrade = async (symbol: string) => {
+    setIsLoading(true);
+    try {
+      const result = await apiService.executeAIAutoTrade(
+        symbol,
+        riskLevel[0],
+        maxTradeSize[0]
+      );
+      
+      if (result.message.includes('successfully')) {
+        toast.success(`AI auto trade executed: ${result.signal} ${symbol}`);
+        
+        // Add the trade to the list
+        const newTrade: AITrade = {
+          id: `AI${Date.now()}`,
+          symbol: symbol,
+          side: result.signal.includes('BUY') ? 'BUY' : 'SELL',
+          quantity: result.trade_size,
+          price: 0, // Will be filled by actual trade execution
+          confidence: result.strength,
+          reasoning: `AI Signal: ${result.signal} (${result.strength}% strength)`,
+          timestamp: Date.now(),
+          status: 'EXECUTED'
+        };
+        
+        setAiTrades(prev => [newTrade, ...prev.slice(0, 4)]);
+              } else {
+          toast.info(`No trade executed: ${result.message}`);
+        }
+    } catch (error) {
+      console.error('AI auto trade failed:', error);
+      toast.error('AI auto trade failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMarketSignals();
+    fetchAIPerformance();
+  }, []);
+
+  useEffect(() => {
+    if (isActive) {
+      fetchMarketSignals();
+      fetchAIPerformance();
+    }
+  }, [isActive]);
+
+  // Refresh data periodically when active
+  useEffect(() => {
+    if (!isActive) return;
+
+    const interval = setInterval(() => {
+      fetchMarketSignals();
+      fetchAIPerformance();
+    }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
   }, [isActive]);
@@ -301,31 +362,70 @@ const AIAutoTrading: React.FC = () => {
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
             Real-Time Market Analysis
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchMarketSignals}
+              disabled={isLoading}
+              className="ml-auto"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {marketSignals.map((signal) => (
-              <div key={signal.symbol} className="p-4 rounded-lg border bg-card/50">
+              <div key={signal.symbol} className={`p-4 rounded-lg border bg-card/50 ${signal.factors.includes('Loading...') ? 'opacity-60' : ''}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold">{signal.symbol}</span>
                   <Badge className={getSignalColor(signal.signal)}>
-                    {signal.signal.replace('_', ' ')}
+                    {signal.factors.includes('Loading...') ? 'LOADING' : signal.signal.replace('_', ' ')}
                   </Badge>
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Strength</span>
-                    <span>{signal.strength}%</span>
+                    <span>{signal.factors.includes('Loading...') ? '--' : `${signal.strength}%`}</span>
                   </div>
-                  <Progress value={signal.strength} className="h-1" />
+                  <Progress value={signal.strength || 0} className="h-1" />
                   <div className="text-xs text-muted-foreground">
                     {signal.factors.join(' • ')}
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => executeAIAutoTrade(signal.symbol)}
+                    disabled={isLoading || signal.factors.includes('Loading...') || signal.signal === 'NEUTRAL' || signal.strength < 60}
+                    className="w-full mt-2"
+                  >
+                    {isLoading || signal.factors.includes('Loading...') ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Zap className="h-4 w-4" />
+                    )}
+                    {signal.factors.includes('Loading...') ? 'Loading...' : 'Execute Trade'}
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
+          
+          {/* Debug info - remove in production */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
+              <strong>Debug Info:</strong> {marketSignals.length} signals loaded for {supportedSymbols.length} symbols
+              <br />
+              <strong>Symbols:</strong> {supportedSymbols.join(', ')}
+              <br />
+              <strong>Current Signals:</strong> {marketSignals.map(s => `${s.symbol}: ${s.signal}`).join(', ')}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -342,51 +442,58 @@ const AIAutoTrading: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {aiTrades.map((trade) => (
-              <div key={trade.id} className="p-4 rounded-lg border bg-card/50 hover:bg-card/70 transition-all">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-full ${trade.side === 'BUY' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
-                      {trade.side === 'BUY' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{trade.side} {trade.symbol}</span>
-                        <Badge className={getStatusColor(trade.status)}>
-                          {trade.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {trade.quantity} @ ${trade.price.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 text-sm">
-                      <Target className="h-3 w-3" />
-                      <span>{trade.confidence.toFixed(1)}%</span>
-                    </div>
-                    {trade.profit && (
-                      <div className={`text-sm font-semibold ${trade.profit > 0 ? 'text-success' : 'text-destructive'}`}>
-                        {trade.profit > 0 ? '+' : ''}${trade.profit.toFixed(2)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="text-sm text-muted-foreground mb-2">
-                  <span className="font-medium">AI Reasoning:</span> {trade.reasoning}
-                </div>
-                
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    <span>{new Date(trade.timestamp).toLocaleTimeString()}</span>
-                  </div>
-                  <span>Order ID: {trade.id}</span>
-                </div>
+            {aiTrades.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No AI trades yet. Execute trades based on market signals above.</p>
               </div>
-            ))}
+            ) : (
+              aiTrades.map((trade) => (
+                <div key={trade.id} className="p-4 rounded-lg border bg-card/50 hover:bg-card/70 transition-all">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-full ${trade.side === 'BUY' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
+                        {trade.side === 'BUY' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{trade.side} {trade.symbol}</span>
+                          <Badge className={getStatusColor(trade.status)}>
+                            {trade.status}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {trade.quantity} @ ${trade.price.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-1 text-sm">
+                        <Target className="h-3 w-3" />
+                        <span>{trade.confidence.toFixed(1)}%</span>
+                      </div>
+                      {trade.profit && (
+                        <div className={`text-sm font-semibold ${trade.profit > 0 ? 'text-success' : 'text-destructive'}`}>
+                          {trade.profit > 0 ? '+' : ''}${trade.profit.toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="text-sm text-muted-foreground mb-2">
+                    <span className="font-medium">AI Reasoning:</span> {trade.reasoning}
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      <span>{new Date(trade.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <span>Order ID: {trade.id}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

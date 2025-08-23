@@ -1,9 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, TrendingUp, TrendingDown, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, Eye, EyeOff, RefreshCw, AlertCircle, CheckCircle, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { apiService } from "@/services/api";
+import { toast } from "sonner";
 
 interface WalletBalanceProps {
   totalAssets: number;
@@ -19,6 +21,21 @@ interface WalletBalanceProps {
   onRefresh?: () => void;
 }
 
+interface BinanceBalance {
+  currency: string;
+  balance: number;
+  usd_value: number;
+  price_usd: number;
+}
+
+interface WalletStatus {
+  connected: boolean;
+  status: string;
+  message: string;
+  account_type?: string;
+  last_updated?: string;
+}
+
 export function WalletBalance({ 
   totalAssets, 
   roi, 
@@ -28,13 +45,63 @@ export function WalletBalance({
   onRefresh 
 }: WalletBalanceProps) {
   const [isHidden, setIsHidden] = useState(false);
+  const [binanceBalances, setBinanceBalances] = useState<BinanceBalance[]>([]);
+  const [walletStatus, setWalletStatus] = useState<WalletStatus | null>(null);
+  const [isLoadingBinance, setIsLoadingBinance] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
   
   // Calculate additional metrics from portfolio data
   const totalBtcAmount = portfolio.reduce((sum, item) => sum + item.btc_amount, 0);
   const avgPurchasePrice = portfolio.length > 0 
     ? portfolio.reduce((sum, item) => sum + item.purchase_price, 0) / portfolio.length 
     : 0;
-  
+
+  // Fetch Binance wallet data
+  const fetchBinanceWallet = async () => {
+    setIsLoadingBinance(true);
+    try {
+      const [balanceData, statusData] = await Promise.all([
+        apiService.getWalletBalance(),
+        apiService.getWalletStatus()
+      ]);
+      
+      setBinanceBalances(balanceData.crypto_balances);
+      setWalletStatus(statusData);
+      setLastUpdated(balanceData.last_updated);
+      
+      // Only show toast for manual refresh, not auto-refresh
+      if (!isLoadingBinance) {
+        if (statusData.connected) {
+          toast.success('Wallet connected successfully');
+        } else {
+          toast.error(`Wallet connection failed: ${statusData.message}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch Binance wallet:', error);
+      setWalletStatus({
+        connected: false,
+        status: 'error',
+        message: 'Failed to connect to Binance'
+      });
+      // Only show error toast for manual refresh
+      if (!isLoadingBinance) {
+        toast.error('Failed to fetch wallet data');
+      }
+    } finally {
+      setIsLoadingBinance(false);
+    }
+  };
+
+  // Auto-refresh wallet data
+  useEffect(() => {
+    fetchBinanceWallet();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBinanceWallet, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const formatCurrency = (amount: number) => {
     if (isHidden) return "••••••";
     return new Intl.NumberFormat('en-US', {
@@ -48,6 +115,44 @@ export function WalletBalance({
   const formatBtc = (amount: number) => {
     if (isHidden) return "••••••";
     return `${amount.toFixed(8)} BTC`;
+  };
+
+  const formatCrypto = (amount: number, currency: string) => {
+    if (isHidden) return "••••••";
+    if (currency === 'USDT') {
+      return `${amount.toFixed(2)} USDT`;
+    }
+    return `${amount.toFixed(6)} ${currency}`;
+  };
+
+  const getConnectionStatusIcon = () => {
+    if (!walletStatus) return <WifiOff className="h-4 w-4 text-muted-foreground" />;
+    
+    if (walletStatus.connected) {
+      return <CheckCircle className="h-4 w-4 text-success" />;
+    } else {
+      return <AlertCircle className="h-4 w-4 text-destructive" />;
+    }
+  };
+
+  const getConnectionStatusText = () => {
+    if (!walletStatus) return 'Checking connection...';
+    
+    if (walletStatus.connected) {
+      return 'Connected to Binance';
+    } else {
+      return walletStatus.message;
+    }
+  };
+
+  const getConnectionStatusColor = () => {
+    if (!walletStatus) return 'text-muted-foreground';
+    
+    if (walletStatus.connected) {
+      return 'text-success';
+    } else {
+      return 'text-destructive';
+    }
   };
 
   if (isLoading) {
@@ -81,7 +186,16 @@ export function WalletBalance({
             </div>
             <div className="min-w-0">
               <h3 className="text-base sm:text-lg font-semibold gradient-text truncate">Wallet Balance</h3>
-              <p className="text-xs text-muted-foreground hidden sm:block">Total Portfolio Value</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="hidden sm:inline">Total Portfolio Value</span>
+                <span className="hidden sm:inline">•</span>
+                <div className="flex items-center gap-1">
+                  {getConnectionStatusIcon()}
+                  <span className={getConnectionStatusColor()}>
+                    {getConnectionStatusText()}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -94,73 +208,120 @@ export function WalletBalance({
             >
               {isHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
             </Button>
-            {onRefresh && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onRefresh}
-                className="p-2"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Main Balance */}
-        <div className="space-y-2">
-          <div className="text-2xl sm:text-4xl font-bold gradient-text break-all">
-            {formatCurrency(totalAssets)}
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-            <Badge 
-              variant={roi >= 0 ? "default" : "destructive"}
-              className={cn(
-                "flex items-center space-x-1 w-fit",
-                roi >= 0 ? "bg-success/20 text-success hover:bg-success/30" : "bg-danger/20 text-danger hover:bg-danger/30"
-              )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchBinanceWallet}
+              disabled={isLoadingBinance}
+              className="p-2"
             >
-              {roi >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              <span>{roi >= 0 ? '+' : ''}{roi.toFixed(2)}% ROI</span>
-            </Badge>
-            {totalLoss > 0 && (
-              <Badge variant="outline" className="text-muted-foreground w-fit">
-                Loss: {formatCurrency(totalLoss)}
-              </Badge>
-            )}
+              <RefreshCw className={`h-4 w-4 ${isLoadingBinance ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </div>
 
-        {/* Portfolio Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="p-3 sm:p-4 rounded-lg bg-card/50 backdrop-blur-sm border border-border">
-            <p className="text-sm text-muted-foreground mb-1">BTC Holdings</p>
-            <p className="text-lg sm:text-xl font-bold break-all">{formatBtc(totalBtcAmount)}</p>
+        {/* Binance Wallet Balances */}
+        {walletStatus?.connected && binanceBalances.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-muted-foreground">Binance Wallet</h4>
+              {lastUpdated && (
+                <span className="text-xs text-muted-foreground">
+                  Updated: {new Date(lastUpdated).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {binanceBalances.slice(0, 6).map((balance) => (
+                <div key={balance.currency} className="p-3 rounded-lg bg-card/50 backdrop-blur-sm border border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">{balance.currency}</span>
+                    <span className="text-xs text-muted-foreground">
+                      ${balance.price_usd.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-lg font-bold">
+                      {formatCrypto(balance.balance, balance.currency)}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatCurrency(balance.usd_value)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {binanceBalances.length > 6 && (
+              <div className="text-center">
+                <span className="text-xs text-muted-foreground">
+                  +{binanceBalances.length - 6} more currencies
+                </span>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Local Portfolio Summary */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-muted-foreground">Local Portfolio</h4>
           
-          <div className="p-3 sm:p-4 rounded-lg bg-card/50 backdrop-blur-sm border border-border">
-            <p className="text-sm text-muted-foreground mb-1">Avg. Purchase Price</p>
-            <p className="text-lg sm:text-xl font-bold break-all">{formatCurrency(avgPurchasePrice)}</p>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="pt-4 border-t border-border/50">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Portfolio Items</span>
-            <span className="font-medium">{portfolio.length}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm mt-2">
-            <span className="text-muted-foreground">Status</span>
-            <Badge 
-              variant="outline" 
-              className={cn(
-                "text-xs",
-                roi >= 0 ? "text-success border-success/50" : "text-warning border-warning/50"
+          {/* Main Balance */}
+          <div className="space-y-2">
+            <div className="text-2xl sm:text-4xl font-bold gradient-text break-all">
+              {formatCurrency(totalAssets)}
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+              <Badge 
+                variant={roi >= 0 ? "default" : "destructive"}
+                className={cn(
+                  "flex items-center space-x-1 w-fit",
+                  roi >= 0 ? "bg-success/20 text-success hover:bg-success/30" : "bg-danger/20 text-danger hover:bg-danger/30"
+                )}
+              >
+                {roi >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                <span>{roi >= 0 ? '+' : ''}{roi.toFixed(2)}% ROI</span>
+              </Badge>
+              {totalLoss > 0 && (
+                <Badge variant="outline" className="text-muted-foreground w-fit">
+                  Loss: {formatCurrency(totalLoss)}
+                </Badge>
               )}
-            >
-              {roi >= 0 ? "Profitable" : "At Loss"}
-            </Badge>
+            </div>
+          </div>
+
+          {/* Portfolio Summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="p-3 sm:p-4 rounded-lg bg-card/50 backdrop-blur-sm border border-border">
+              <p className="text-sm text-muted-foreground mb-1">BTC Holdings</p>
+              <p className="text-lg sm:text-xl font-bold break-all">{formatBtc(totalBtcAmount)}</p>
+            </div>
+            
+            <div className="p-3 sm:p-4 rounded-lg bg-card/50 backdrop-blur-sm border border-border">
+              <p className="text-sm text-muted-foreground mb-1">Avg. Purchase Price</p>
+              <p className="text-lg sm:text-xl font-bold break-all">{formatCurrency(avgPurchasePrice)}</p>
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="pt-4 border-t border-border/50">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Portfolio Items</span>
+              <span className="font-medium">{portfolio.length}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm mt-2">
+              <span className="text-muted-foreground">Status</span>
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  "text-xs",
+                  roi >= 0 ? "text-success border-success/50" : "text-warning border-warning/50"
+                )}
+              >
+                {roi >= 0 ? "Profitable" : "At Loss"}
+              </Badge>
+            </div>
           </div>
         </div>
       </div>

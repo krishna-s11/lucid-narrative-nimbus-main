@@ -8,24 +8,42 @@ import { useToast } from "@/hooks/use-toast";
 import { TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react";
 
 interface TradingFormProps {
-  onExecuteTrade: (symbol: string, side: string, amount: number, stopLoss?: number) => Promise<void>;
+  onExecuteTrade: (symbol: string, side: string, usdAmount: number, stopLoss?: number) => Promise<void>;
   isLoading?: boolean;
 }
 
 export function TradingForm({ onExecuteTrade, isLoading = false }: TradingFormProps) {
   const [symbol, setSymbol] = useState("BTC/USDT");
   const [side, setSide] = useState("buy");
-  const [amount, setAmount] = useState("");
+  const [usdAmount, setUsdAmount] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!amount || parseFloat(amount) <= 0) {
+    if (!usdAmount || parseFloat(usdAmount) <= 0) {
       toast({
         title: "Invalid amount",
-        description: "Please enter a valid amount to trade",
+        description: "Please enter a valid USD amount to trade",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check minimum trade amounts
+    const amount = parseFloat(usdAmount);
+    const minAmounts = {
+      'BTC/USDT': 12,
+      'ETH/USDT': 12,
+      'BNB/USDT': 10
+    };
+    
+    const minAmount = minAmounts[symbol as keyof typeof minAmounts] || 10;
+    if (amount < minAmount) {
+      toast({
+        title: "Amount too small",
+        description: `Minimum trade for ${symbol} is $${minAmount}. Please enter at least $${minAmount}.`,
         variant: "destructive",
       });
       return;
@@ -35,17 +53,17 @@ export function TradingForm({ onExecuteTrade, isLoading = false }: TradingFormPr
       await onExecuteTrade(
         symbol,
         side,
-        parseFloat(amount),
+        amount,
         stopLoss ? parseFloat(stopLoss) : undefined
       );
       
       // Reset form on success
-      setAmount("");
+      setUsdAmount("");
       setStopLoss("");
       
       toast({
         title: "Trade executed",
-        description: `${side.toUpperCase()} order for ${amount} ${symbol} has been placed`,
+        description: `${side.toUpperCase()} order for $${amount} worth of ${symbol} has been placed`,
       });
     } catch (error) {
       toast({
@@ -91,20 +109,23 @@ export function TradingForm({ onExecuteTrade, isLoading = false }: TradingFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="amount">Amount</Label>
+          <Label htmlFor="usdAmount">USD Amount</Label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              id="amount"
+              id="usdAmount"
               type="number"
-              placeholder="0.001"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              placeholder="20.00"
+              value={usdAmount}
+              onChange={(e) => setUsdAmount(e.target.value)}
               className="pl-10"
-              step="0.001"
+              step="0.01"
               min="0"
             />
           </div>
+          <p className="text-xs text-muted-foreground">
+            💡 Minimum trade: BTC/USDT: ~$12, ETH/USDT: ~$12, BNB/USDT: ~$10
+          </p>
         </div>
 
         <div className="space-y-2">
