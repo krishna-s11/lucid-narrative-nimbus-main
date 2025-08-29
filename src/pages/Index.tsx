@@ -48,6 +48,13 @@ const Index = () => {
     auto_trade: false,
     threshold_limit: 0
   });
+  const [autoTradingSettings, setAutoTradingSettings] = useState<{
+    enabled: boolean;
+    risk_level: number;
+    max_trade_size: number;
+    pairs: string[];
+    min_signal_strength?: number;
+  } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -77,17 +84,27 @@ const Index = () => {
   const loadDashboardData = async () => {
     setIsDashboardLoading(true);
     try {
-      const [stats, coins, pf, prefs] = await Promise.all([
+      const [stats, coins, pf, prefs, ats] = await Promise.all([
         apiService.getUserStats(),
         apiService.getEnhancedTrendingCoins(), // Use enhanced trending data
         apiService.getPortfolio(),
         apiService.getPreferences().catch(() => null),
+        apiService.getAutoTradingSettings().catch(() => null),
       ]);
 
       if (stats) setUserStats(stats);
       if (Array.isArray(coins)) setTrendingCoins(coins);
       if (Array.isArray(pf)) setPortfolio(pf);
       if (prefs) setPreferences(prefs);
+      if (ats) {
+        setAutoTradingSettings({
+          enabled: ats.enabled,
+          risk_level: ats.risk_level,
+          max_trade_size: ats.max_trade_size,
+          pairs: (ats.allowed_pairs || '').split(',').map((p: string) => p.trim()).filter(Boolean),
+          min_signal_strength: (ats as any).min_signal_strength ?? 60,
+        });
+      }
 
       // Build a simple chart from portfolio entries using purchase price over time
       if (Array.isArray(pf) && pf.length > 0) {
@@ -237,6 +254,11 @@ const Index = () => {
     }
   };
 
+  const handleUpdateAutoTrading = async (params: { enabled: boolean; risk_level: number; max_trade_size: number; pairs: string[]; min_signal_strength?: number }) => {
+    await apiService.updateAutoTradingSettings(params);
+    setAutoTradingSettings({ ...params });
+  };
+
   if (!isAuthenticated) {
     return isLogin ? (
       <LoginForm
@@ -337,6 +359,8 @@ const Index = () => {
         onClose={() => setShowSettings(false)}
         onUpdatePreferences={handleUpdatePreferences}
         onUpdateBinanceKeys={handleUpdateBinanceKeys}
+        onUpdateAutoTrading={handleUpdateAutoTrading}
+        autoTradingSettings={autoTradingSettings || undefined}
         preferences={preferences}
       />
     </div>

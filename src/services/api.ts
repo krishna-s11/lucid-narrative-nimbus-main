@@ -394,6 +394,45 @@ class ApiService {
     }>('/preferences/');
   }
 
+  // Auto-Trading settings endpoints
+  async getAutoTradingSettings() {
+    return this.request<{
+      id: number;
+      user_id: number;
+      enabled: boolean;
+      risk_level: number;
+      max_trade_size: number;
+      allowed_pairs: string;
+      min_signal_strength: number;
+    }>('/preferences/auto-trading', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  async updateAutoTradingSettings(params: {
+    enabled: boolean;
+    risk_level: number;
+    max_trade_size: number;
+    pairs: string[];
+    min_signal_strength?: number;
+  }) {
+    return this.request<{
+      id: number;
+      user_id: number;
+      enabled: boolean;
+      risk_level: number;
+      max_trade_size: number;
+      allowed_pairs: string;
+      min_signal_strength: number;
+    }>('/preferences/auto-trading', {
+      method: 'PUT',
+      body: JSON.stringify(params),
+    });
+  }
+
   async createPreferences(autoTrade: boolean, thresholdLimit: number) {
     return this.request<any>('/preferences/', {
       method: 'POST',

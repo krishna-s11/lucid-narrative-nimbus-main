@@ -13,6 +13,14 @@ interface SettingsDialogProps {
   onClose: () => void;
   onUpdatePreferences: (autoTrade: boolean, thresholdLimit: number) => Promise<void>;
   onUpdateBinanceKeys: (apiKey: string, apiSecret: string) => Promise<void>;
+  onUpdateAutoTrading?: (params: { enabled: boolean; risk_level: number; max_trade_size: number; pairs: string[]; min_signal_strength?: number }) => Promise<void>;
+  autoTradingSettings?: {
+    enabled: boolean;
+    risk_level: number;
+    max_trade_size: number;
+    pairs: string[];
+    min_signal_strength?: number;
+  };
   preferences?: {
     auto_trade: boolean;
     threshold_limit: number;
@@ -24,6 +32,8 @@ export function SettingsDialog({
   onClose, 
   onUpdatePreferences, 
   onUpdateBinanceKeys, 
+  onUpdateAutoTrading,
+  autoTradingSettings,
   preferences 
 }: SettingsDialogProps) {
   const [autoTrade, setAutoTrade] = useState(preferences?.auto_trade ?? false);
@@ -32,6 +42,13 @@ export function SettingsDialog({
   const [apiSecret, setApiSecret] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Auto trading UI state
+  const [autoEnabled, setAutoEnabled] = useState<boolean>(autoTradingSettings?.enabled ?? false);
+  const [riskLevel, setRiskLevel] = useState<number>(autoTradingSettings?.risk_level ?? 3);
+  const [maxTradeSize, setMaxTradeSize] = useState<number>(autoTradingSettings?.max_trade_size ?? 25);
+  const [pairs, setPairs] = useState<string>((autoTradingSettings?.pairs ?? ["BTC/USDT","ETH/USDT","BNB/USDT"]).join(","));
+  const [minStrength, setMinStrength] = useState<number>(autoTradingSettings?.min_signal_strength ?? 60);
 
   const handleUpdatePreferences = async () => {
     setIsLoading(true);
@@ -45,6 +62,33 @@ export function SettingsDialog({
       toast({
         title: "Update failed",
         description: "Failed to update preferences. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateAutoTrading = async () => {
+    if (!onUpdateAutoTrading) return;
+    setIsLoading(true);
+    try {
+      const parsedPairs = pairs.split(',').map(p => p.trim()).filter(Boolean);
+      await onUpdateAutoTrading({
+        enabled: autoEnabled,
+        risk_level: riskLevel,
+        max_trade_size: maxTradeSize,
+        pairs: parsedPairs,
+        min_signal_strength: minStrength,
+      });
+      toast({
+        title: "Auto-trading updated",
+        description: "Background auto trading preferences saved",
+      });
+    } catch (e) {
+      toast({
+        title: "Update failed",
+        description: "Could not save auto-trading settings",
         variant: "destructive",
       });
     } finally {
@@ -91,7 +135,7 @@ export function SettingsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] bg-card">
+      <DialogContent className="sm:max-w-[500px] bg-card max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Settings className="h-5 w-5" />
@@ -100,6 +144,43 @@ export function SettingsDialog({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Auto Trading (Background Scheduler) */}
+          {onUpdateAutoTrading && (
+            <Card className="crypto-card p-4">
+              <h3 className="text-lg font-semibold mb-4">Auto Trading (Background)</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="auto-enabled">Enable</Label>
+                    <p className="text-sm text-muted-foreground">Run trades automatically every few minutes</p>
+                  </div>
+                  <Switch id="auto-enabled" checked={autoEnabled} onCheckedChange={setAutoEnabled} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Risk Level (1-5)</Label>
+                    <Input type="number" min={1} max={5} value={riskLevel} onChange={e => setRiskLevel(parseInt(e.target.value || '3'))} />
+                  </div>
+                  <div>
+                    <Label>Max Trade Size ($)</Label>
+                    <Input type="number" min={5} value={maxTradeSize} onChange={e => setMaxTradeSize(parseFloat(e.target.value || '25'))} />
+                  </div>
+                  <div>
+                    <Label>Minimum Signal Strength</Label>
+                    <Input type="number" min={0} max={100} value={minStrength} onChange={e => setMinStrength(parseInt(e.target.value || '60'))} />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <Label>Allowed Pairs (comma-separated)</Label>
+                    <Input value={pairs} onChange={e => setPairs(e.target.value)} placeholder="BTC/USDT,ETH/USDT" />
+                  </div>
+                </div>
+                <Button onClick={handleUpdateAutoTrading} disabled={isLoading} className="w-full">
+                  {isLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : ("Save Auto Trading Settings")}
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {/* Trading Preferences */}
           <Card className="crypto-card p-4">
             <h3 className="text-lg font-semibold mb-4">Trading Preferences</h3>
