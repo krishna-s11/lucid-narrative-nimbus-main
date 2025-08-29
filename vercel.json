@@ -1,8 +1,12 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "http://13.55.203.191/$1" },
-    { "source": "/ml/(.*)", "destination": "http://52.63.23.153/$1" }
+    {
+      "source": "/api/(.*)",
+      "destination": "http://13.55.203.191/$1"
+    },
+    {
+      "source": "/ml/(.*)",
+      "destination": "http://52.65.184.114/$1"
+    }
   ]
 }
-
-
