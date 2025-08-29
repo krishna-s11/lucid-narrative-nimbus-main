@@ -20,75 +20,8 @@ interface RecentTransactionsProps {
   onRefresh?: () => void;
 }
 
-// Mock data for demonstration - replace with real API data
-const mockTransactions: Transaction[] = [
-  {
-    id: 1,
-    type: "buy",
-    symbol: "BTC/USDT",
-    amount: 0.156,
-    price: 43247.85,
-    timestamp: "2024-01-18T10:30:00Z",
-    status: "completed"
-  },
-  {
-    id: 2,
-    type: "sell",
-    symbol: "ETH/USDT",
-    amount: 2.45,
-    price: 2634.92,
-    timestamp: "2024-01-18T09:15:00Z",
-    status: "completed"
-  },
-  {
-    id: 3,
-    type: "buy",
-    symbol: "SOL/USDT",
-    amount: 15.8,
-    price: 98.43,
-    timestamp: "2024-01-18T08:45:00Z",
-    status: "completed"
-  },
-  {
-    id: 4,
-    type: "buy",
-    symbol: "BNB/USDT",
-    amount: 8.5,
-    price: 318.76,
-    timestamp: "2024-01-18T07:20:00Z",
-    status: "completed"
-  },
-  {
-    id: 5,
-    type: "sell",
-    symbol: "ADA/USDT",
-    amount: 1250,
-    price: 0.487,
-    timestamp: "2024-01-17T16:20:00Z",
-    status: "completed"
-  },
-  {
-    id: 6,
-    type: "buy",
-    symbol: "XRP/USDT",
-    amount: 890,
-    price: 0.628,
-    timestamp: "2024-01-17T14:10:00Z",
-    status: "completed"
-  },
-  {
-    id: 7,
-    type: "sell",
-    symbol: "MATIC/USDT",
-    amount: 750,
-    price: 0.876,
-    timestamp: "2024-01-17T11:35:00Z",
-    status: "completed"
-  }
-];
-
 export function RecentTransactions({ 
-  transactions = mockTransactions, 
+  transactions = [], 
   isLoading = false,
   onRefresh 
 }: RecentTransactionsProps) {
