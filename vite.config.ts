@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
         rewrite: (p) => p.replace(/^\/api/, ""),
       },
       "/ml": {
-        target: "http://52.63.23.153:8000",
+        target: "http://52.63.23.153",
         changeOrigin: true,
         secure: false,
         rewrite: (p) => p.replace(/^\/ml/, ""),
